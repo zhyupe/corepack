@@ -1,11 +1,10 @@
-import {UsageError}          from 'clipanion';
-import {OutgoingHttpHeaders} from 'http2';
+import {UsageError}   from 'clipanion';
 
-import * as httpUtils        from './httpUtils';
+import * as httpUtils from './httpUtils';
 
 // load abbreviated metadata as that's all we need for these calls
 // see: https://github.com/npm/registry/blob/cfe04736f34db9274a780184d1cdb2fb3e4ead2a/docs/responses/package-metadata.md
-export const DEFAULT_HEADERS: OutgoingHttpHeaders = {
+export const DEFAULT_HEADERS = {
   [`Accept`]: `application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8`,
 };
 export const DEFAULT_NPM_REGISTRY_URL = `https://registry.npmjs.org`;
@@ -16,7 +15,7 @@ export async function fetchAsJson(packageName: string) {
   if (process.env.COREPACK_ENABLE_NETWORK === `0`)
     throw new UsageError(`Network access disabled by the environment; can't reach npm repository ${npmRegistryUrl}`);
 
-  const headers = {...DEFAULT_HEADERS};
+  const headers: Record<string, string> = {...DEFAULT_HEADERS};
 
   if (`COREPACK_NPM_TOKEN` in process.env) {
     headers.authorization = `Bearer ${process.env.COREPACK_NPM_TOKEN}`;

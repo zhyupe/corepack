@@ -1,55 +1,42 @@
-import {UsageError}      from 'clipanion';
-import {RequestOptions}  from 'https';
-import {IncomingMessage} from 'http';
+import {UsageError} from 'clipanion';
 
-export async function fetchUrlStream(url: string, options: RequestOptions = {}) {
+export async function fetchUrl(url: string, options: RequestInit = {}) {
   if (process.env.COREPACK_ENABLE_NETWORK === `0`)
     throw new UsageError(`Network access disabled by the environment; can't reach ${url}`);
 
-  const {default: https} = await import(`https`);
+  try {
+    const response = await fetch(url, options);
+    const statusCode = response.status;
+    if (statusCode != null && statusCode >= 200 && statusCode < 300)
+      return response;
 
-  const {ProxyAgent} = await import(`proxy-agent`);
-
-  const proxyAgent = new ProxyAgent();
-
-  return new Promise<IncomingMessage>((resolve, reject) => {
-    const request = https.get(url, {...options, agent: proxyAgent}, response => {
-      const statusCode = response.statusCode;
-      if (statusCode != null && statusCode >= 200 && statusCode < 300)
-        return resolve(response);
-
-      return reject(new Error(`Server answered with HTTP ${statusCode} when performing the request to ${url}; for troubleshooting help, see https://github.com/nodejs/corepack#troubleshooting`));
+    throw new Error(`Server answered with HTTP ${statusCode} when performing the request to ${url}; for troubleshooting help, see https://github.com/nodejs/corepack#troubleshooting`);
+  } catch (err) {
+    throw new Error(`Error when performing the request to ${url}; for troubleshooting help, see https://github.com/nodejs/corepack#troubleshooting`, {
+      cause: err,
     });
-
-    request.on(`error`, err => {
-      reject(new Error(`Error when performing the request to ${url}; for troubleshooting help, see https://github.com/nodejs/corepack#troubleshooting`));
-    });
-  });
+  }
 }
 
-export async function fetchAsBuffer(url: string, options?: RequestOptions) {
-  const response = await fetchUrlStream(url, options);
+export async function fetchUrlStream(url: string, options: RequestInit = {}) {
+  const response = await fetchUrl(url, options);
 
-  return new Promise<Buffer>((resolve, reject) => {
-    const chunks: Array<Buffer> = [];
+  if (response.body)
+    return response.body;
 
-    response.on(`data`, chunk => {
-      chunks.push(chunk);
-    });
-
-    response.on(`error`, error => {
-      reject(error);
-    });
-
-    response.on(`end`, () => {
-      resolve(Buffer.concat(chunks));
-    });
-  });
+  throw new Error(`Response has no body`);
 }
 
-export async function fetchAsJson(url: string, options?: RequestOptions) {
-  const buffer = await fetchAsBuffer(url, options);
-  const asText = buffer.toString();
+export async function fetchAsBuffer(url: string, options?: RequestInit) {
+  const response = await fetchUrl(url, options);
+  const arrayBuffer = await response.arrayBuffer();
+
+  return Buffer.from(arrayBuffer);
+}
+
+export async function fetchAsJson(url: string, options?: RequestInit) {
+  const response = await fetchUrl(url, options);
+  const asText = await response.text();
 
   try {
     return JSON.parse(asText);
